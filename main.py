@@ -84,6 +84,18 @@ def main():
     claims_df.to_csv(f"{extraction_data_dir}/{file_path_prefix}claims.csv", index=False)
     print(f"\nFinal claims CSV saved to: {extraction_data_dir}/{file_path_prefix}claims.csv")
     
+    # 9.5 Run rollup post-processing
+    print("\nRunning claims rollup post-processing...")
+    try:
+        from post_process_rollup import run_rollup_post_processing
+        run_rollup_post_processing(
+            input_path=f"{extraction_data_dir}/{file_path_prefix}claims.csv",
+            output_detailed_path=f"{extraction_data_dir}/{file_path_prefix}claims.csv",
+            output_rollup_path=f"{extraction_data_dir}/{file_path_prefix}Rolled_up_claims.csv"
+        )
+    except Exception as e:
+        print(f"[ERROR] Failed to run rollup post-processing: {e}")
+    
     # 10. Save metrics JSON
     metrics_output_path = f"{extraction_data_dir}/{file_path_prefix}metrics.json"
     save_metrics_json(metrics_output_path)

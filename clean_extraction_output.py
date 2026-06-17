@@ -59,15 +59,34 @@ US_STATES_MAP = {
 }
 
 def _clean_date_str(s: pd.Series) -> pd.Series:
-    """Convert anything parseable to MM/DD/YYYY as string; else NaN."""
+    """Convert anything parseable to YYYY-MM-DD as string; else NaN."""
+    dayfirst = False
+    for val in s.dropna():
+        val_str = str(val).strip()
+        # Look for dates where day is unambiguously first (e.g. 13/10/2024 or 15-12-2023)
+        match = re.match(r"^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})", val_str)
+        if match:
+            first = int(match.group(1))
+            second = int(match.group(2))
+            if first > 12 and second <= 12:
+                dayfirst = True
+                break
+                
     def _parse(v):
         if pd.isna(v):
             return pd.NA
-        try:
-            dt = pd.to_datetime(str(v), errors="raise")
-            return dt.strftime("%m/%d/%Y")
-        except Exception:
+        val_str = str(v).strip()
+        if not val_str or val_str.lower() in ["nan", "none", "null"]:
             return pd.NA
+        try:
+            dt = pd.to_datetime(val_str, dayfirst=dayfirst, errors="raise")
+            return dt.strftime("%Y-%m-%d")
+        except Exception:
+            try:
+                dt = pd.to_datetime(val_str, dayfirst=not dayfirst, errors="raise")
+                return dt.strftime("%Y-%m-%d")
+            except Exception:
+                return pd.NA
     return s.apply(_parse)
 
 def _clean_lob(s: pd.Series) -> pd.Series:
@@ -336,6 +355,11 @@ def process_claims_df(claims_df: pd.DataFrame) -> pd.DataFrame:
                     raw_lookup.setdefault(n, set()).add(str(raw).strip())
             missing_raw = sorted({item for n in missing_norm for item in raw_lookup.get(n, (n,))})
             print(f"[CLEANING] Dropped claim numbers during cleaning: {missing_raw}")
+
+    # Sort the dataframe by accident_date chronologically (oldest first, missing dates at bottom)
+    if "accident_date" in df.columns:
+        temp_date = pd.to_datetime(df["accident_date"], errors="coerce")
+        df = df.iloc[temp_date.argsort(kind="stable")]
 
     return df
 
